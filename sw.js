@@ -1,6 +1,6 @@
 // 咪咪阿姨的注音教室 — 離線快取
 // 每次更新 index.html 後，把下面的版本號 +1，家長的 App 就會抓到新版。
-const VERSION = 'zy-v2';
+const VERSION = 'zy-v3';
 const CORE = ['/', '/index.html', '/manifest.webmanifest',
   '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png', '/apple-touch-icon.png'];
 
