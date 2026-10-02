@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#DDF0FA">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="注音教室">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <title>咪咪阿姨的注音教室</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -155,6 +163,17 @@ button:focus-visible{outline:4px solid var(--sun);outline-offset:3px}
 @media (prefers-reduced-motion: reduce){
   *{animation:none!important;transition:none!important}
 }
+
+/* install */
+#installBox{display:none;flex-direction:column;align-items:center;gap:10px;margin-top:6px}
+#installBox.on{display:flex}
+.pill.inst{background:var(--paper);color:var(--ink);box-shadow:0 4px 0 var(--ghost2);font-size:18px}
+#iosTip{display:none;max-width:320px;background:var(--paper);border-radius:18px;padding:12px 16px;font-size:16px;line-height:1.6;color:var(--ink)}
+#iosTip.on{display:block}
+#toast{position:fixed;left:50%;bottom:calc(36px + env(safe-area-inset-bottom,0px));transform:translate(-50%,20px);
+  background:var(--ink);color:var(--paper);font-size:18px;font-weight:700;padding:12px 22px;border-radius:999px;
+  opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;z-index:10;white-space:nowrap}
+#toast.on{opacity:.94;transform:translate(-50%,0)}
 </style>
 </head>
 <body>
@@ -167,11 +186,16 @@ button:focus-visible{outline:4px solid var(--sun);outline-offset:3px}
   </symbol>
 </svg>
 
+<div id="toast" role="status" aria-live="polite"></div>
 <div id="start">
   <svg class="bear"><use href="#bearface"/></svg>
   <h1>咪咪阿姨的注音教室</h1>
   <p>請把聲音打開喔</p>
   <button class="pill" id="go">🔔 開始上課</button>
+  <div id="installBox">
+    <button class="pill inst" id="installBtn">📲 安裝到桌面</button>
+    <div id="iosTip">請按瀏覽器的 <b>分享</b> 按鈕 <b>⬆︎</b>，<br>再選「<b>加入主畫面</b>」就好囉！</div>
+  </div>
 </div>
 
 <!-- HOME -->
@@ -635,7 +659,50 @@ document.getElementById('go').onclick=()=>{
   initAudio();
   document.getElementById('start').remove();
   goHome();
+  armBack();
 };
+
+/* ---------- install as app (PWA) ---------- */
+(function(){
+  const standalone = matchMedia('(display-mode: standalone)').matches ||
+                     matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+  if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+    addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  }
+  if(standalone) return;                      // 已經是 App 了，不用再顯示安裝
+  const box=document.getElementById('installBox'), btn=document.getElementById('installBtn'),
+        tip=document.getElementById('iosTip');
+  let deferred=null;
+  addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferred=e; box.classList.add('on'); });
+  addEventListener('appinstalled', ()=>{ box.classList.remove('on'); deferred=null; });
+  const ios=/iphone|ipad|ipod/i.test(navigator.userAgent) ||
+            (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  if(ios){ box.classList.add('on'); }
+  btn.onclick=async()=>{
+    if(deferred){ deferred.prompt(); await deferred.userChoice.catch(()=>{}); deferred=null; box.classList.remove('on'); }
+    else if(ios){ tip.classList.toggle('on'); }
+  };
+})();
+
+/* ---------- Android back gesture: 再按一次返回離開 ---------- */
+let backGuard=false, exitReady=false, exitTimer=null;
+function armBack(){ if(!backGuard){ history.pushState({zy:1},''); backGuard=true; } }
+function toast(msg, ms){
+  const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
+  clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('on'), ms);
+}
+addEventListener('popstate', ()=>{
+  backGuard=false;
+  if(document.getElementById('start')) return;           // 還沒開始上課
+  if(!document.getElementById('s-home').classList.contains('on')){
+    goHome(); armBack(); return;                          // 在練習畫面：返回 = 回首頁
+  }
+  // 在首頁：先提醒，2 秒內再按一次才會離開
+  exitReady=true; toast('再按一次返回，就會離開囉～', 2000);
+  clearTimeout(exitTimer);
+  exitTimer=setTimeout(()=>{ exitReady=false; armBack(); }, 2000);
+});
+addEventListener('pointerdown', ()=>{ if(!document.getElementById('start') && !exitReady) armBack(); }, true);
 </script>
 </body>
 </html>
